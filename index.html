@@ -1,227 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Media Capture with Webcam Overlay</title>
-<style>
-  #compositeVideo {
-    position: relative;
-    width: 640px; /* Set a specific size for your capture area */
-  }
-  #screenPreview, #webcamPreview {
-    position: absolute;
-    top: 0;
-    left: 0;
-  }
-  #webcamPreview {
-    width: 160px; /* Smaller size for webcam preview */
-    height: 120px;
-    border: 1px solid black;
-    top: 10px; /* Offset from top */
-    right: 10px; /* Offset from right */
-  }
-</style>
-</head>
-<body>
-<form id="captureOptions">
-  <label><input type="checkbox" name="recordAudio"> Record Audio</label>
-  <select id="audioInputSelect" disabled></select><br>
-  <label><input type="checkbox" name="recordVideo"> Record Video (Webcam)</label><br>
-  <label><input type="checkbox" name="recordScreen"> Record Screen</label><br>
-  <button type="button" id="startRecording">Start Recording</button>
-  <button type="button" id="stopRecording" style="display: none;">Stop Recording</button>
-</form>
+  <head>
+    <meta charset="utf-8" />
+    <title>Simple Screen Recorder</title>
 
-<div id="compositeVideo">
-    <video id="screenPreview" autoplay muted playsinline></video>
-    <video id="webcamPreview" autoplay muted playsinline></video>
-  </div>
-  <div style="height: 0px;width: 0px;">
-  <canvas id="compositeCanvas" style="display:none;"></canvas>
-  </div>
-  
-<script>
-const form = document.getElementById('captureOptions');
-const startRecordingButton = document.getElementById('startRecording');
-const stopRecordingButton = document.getElementById('stopRecording');
-const audioInputSelect = document.getElementById('audioInputSelect');
-const webcamPreview = document.getElementById('webcamPreview');
+    <base href="/" />
 
-let recorder;
-let chunks = []; 
-let mediaStream;
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="viewport"
+      content="viewport-fit=cover, width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-tap-highlight" content="no" />
 
-form.recordAudio.addEventListener('change', async (event) => {
-  audioInputSelect.disabled = !event.target.checked;
-  if (event.target.checked) {
-    await updateAudioInputDevices();
-  }
-});
+    <link rel="shortcut icon" type="image/png" href="/favicon.png" />
 
-form.recordVideo.addEventListener('change', async (event) => {
-  if (event.target.checked) {
-    try {
-      const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      webcamPreview.srcObject = videoStream;
-      webcamPreview.style.display = 'block';
-    } catch (err) {
-      console.error('Error accessing webcam:', err);
-    }
-  } else {
-    if (webcamPreview.srcObject) {
-      webcamPreview.srcObject.getTracks().forEach(track => track.stop());
-    }
-    webcamPreview.style.display = 'none';
-  }
-});
+    <!-- add to homescreen for ios -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Ionic App" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <script type="module" crossorigin src="/assets/index-c48045e8.js"></script>
+    <link rel="stylesheet" href="/assets/index-a2fb09e4.css">
+    <script type="module">import.meta.url;import("_").catch(()=>1);async function* g(){};if(location.protocol!="file:"){window.__vite_is_modern_browser=true}</script>
+    <script type="module">!function(){if(window.__vite_is_modern_browser)return;console.warn("vite: loading legacy chunks, syntax error above and the same error below should be ignored");var e=document.getElementById("vite-legacy-polyfill"),n=document.createElement("script");n.src=e.src,n.onload=function(){System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))},document.body.appendChild(n)}();</script>
+  </head>
 
-function startCompositeStream(screenStream, webcamStream) {
-  const canvas = document.getElementById('compositeCanvas');
-  const ctx = canvas.getContext('2d');
-
-  // Set the canvas size to match the screen stream video size
-  canvas.width = screenStream.getVideoTracks()[0].getSettings().width;
-  canvas.height = screenStream.getVideoTracks()[0].getSettings().height;
-
-  const screenPreview = document.getElementById('screenPreview');
-  const webcamPreview = document.getElementById('webcamPreview');
-
-  // Set the sources for the video elements
-  screenPreview.srcObject = screenStream;
-  webcamPreview.srcObject = webcamStream;
-
-  // Draw the screen stream to the canvas
-  function drawScreen() {
-    ctx.drawImage(screenPreview, 0, 0, canvas.width, canvas.height);
-    requestAnimationFrame(drawScreen);
-  }
-
-  // Draw the webcam stream to the canvas
-  function drawWebcam() {
-    const width = 160; // Width of the webcam preview
-    const height = 120; // Height of the webcam preview
-    ctx.drawImage(webcamPreview, canvas.width - width - 10, 10, width, height);
-    requestAnimationFrame(drawWebcam);
-  }
-
-  drawScreen();
-  drawWebcam();
-
-  // Return the composite stream from the canvas
-  return canvas.captureStream();
-}
-
-
-async function updateAudioInputDevices() {
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const audioInputDevices = devices.filter(device => device.kind === 'audioinput');
-
-  audioInputSelect.innerHTML = '';
-  audioInputDevices.forEach(device => {
-    const option = document.createElement('option');
-    option.value = device.deviceId;
-    option.text = device.label || `Microphone (${audioInputDevices.indexOf(device) + 1})`;
-    audioInputSelect.appendChild(option);
-  });
-}
-
-navigator.mediaDevices.addEventListener('devicechange', updateAudioInputDevices);
-
-startRecordingButton.addEventListener('click', async () => {
-  const options = {
-    recordAudio: form.recordAudio.checked,
-    recordVideo: form.recordVideo.checked,
-    recordScreen: form.recordScreen.checked,
-    audioDeviceId: audioInputSelect.value
-  };
-
-  try {
-    const screenStream = options.recordScreen ? await navigator.mediaDevices.getDisplayMedia({ video: true }) : null;
-    const webcamStream = options.recordVideo ? await navigator.mediaDevices.getUserMedia({ video: true }) : null;
+  <body>
+    <div id="app"></div>
     
-    // Combine webcam and screen streams if both are requested, otherwise use what is available
-    if (screenStream && webcamStream) {
-      mediaStream = startCompositeStream(screenStream, webcamStream);
-    } else {
-      mediaStream = screenStream || webcamStream;
-    }
+    <script nomodule>!function(){var e=document,t=e.createElement("script");if(!("noModule"in t)&&"onbeforeload"in t){var n=!1;e.addEventListener("beforeload",(function(e){if(e.target===t)n=!0;else if(!e.target.hasAttribute("nomodule")||!n)return;e.preventDefault()}),!0),t.type="module",t.src=".",e.head.appendChild(t),t.remove()}}();</script>
+    <script nomodule crossorigin id="vite-legacy-polyfill" src="/assets/polyfills-legacy-1624d015.js"></script>
+    <script nomodule crossorigin id="vite-legacy-entry" data-src="/assets/index-legacy-c0044ae4.js">System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))</script>
+  </body>
 
-    if (options.recordAudio) {
-      const audioStream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { deviceId: options.audioDeviceId ? { exact: options.audioDeviceId } : undefined }
-      });
-      // Add the audio track to the combined stream
-      audioStream.getAudioTracks().forEach(track => mediaStream.addTrack(track));
-    }
-
-    if (!mediaStream || mediaStream.getTracks().length === 0) {
-      throw new Error('No media tracks available');
-    }
-
-    startRecording(mediaStream);
-    startRecordingButton.style.display = 'none';
-    stopRecordingButton.style.display = 'inline';
-  } catch (e) {
-    console.error('Error capturing media', e);
-    alert(e.message);
-  }
-});
-
-
-stopRecordingButton.addEventListener('click', stopRecording);
-
-function stopRecording() {
-  recorder.stop();
-  mediaStream.getTracks().forEach(track => track.stop());
-  startRecordingButton.style.display = 'inline';
-  stopRecordingButton.style.display = 'none';
-}
-async function getMediaStreams(options) {
-  const streams = [];
-
-  if (options.recordScreen) {
-    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-    streams.push(screenStream);
-  }
-
-  if (options.recordVideo || options.recordAudio) {
-    const userMediaConstraints = {
-      audio: options.recordAudio ? { deviceId: options.audioDeviceId ? { exact: options.audioDeviceId } : undefined } : false,
-      video: options.recordVideo
-    };
-    const userMediaStream = await navigator.mediaDevices.getUserMedia(userMediaConstraints);
-    streams.push(userMediaStream);
-  }
-
-  // Combine the tracks from all streams into one stream
-  const combinedTracks = streams.flatMap(stream => stream.getTracks());
-  return new MediaStream(combinedTracks);
-}
-
-function startRecording(stream) {
-  chunks = [];
-  recorder = new MediaRecorder(stream);
-
-  recorder.ondataavailable = event => chunks.push(event.data);
-  recorder.onstop = exportRecording;
-
-  recorder.start();
-}
-function exportRecording() {
-  const blob = new Blob(chunks, { type: 'video/webm' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'capture.webm';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-//https://stackoverflow.com/questions/62863547/save-canvas-data-as-mp4-javascript
-
-</script>
-</body>
 </html>
-
 
